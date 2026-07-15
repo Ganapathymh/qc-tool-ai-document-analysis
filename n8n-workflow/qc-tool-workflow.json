@@ -1,0 +1,298 @@
+{
+  "name": "QC Tool - AI Document Analysis",
+  "nodes": [
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-pro",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-pro"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are processing chunk {{ $json.chunkIndex + 1 }} of {{ $json.totalChunks }} from a technical specification document.\n\nUser's request: {{ $node[\"Webhook\"].json.body.prompt }}\n\nIMPORTANT:\n- Extract ONLY technical specifications from THIS chunk\n- Focus on: chemical composition, mechanical properties, standards, dimensions\n- Return data in structured JSON format\n- Do NOT try to summarize the entire document\n- If data appears incomplete (cut off), extract what you can see\n\nDocument chunk to analyze:\n{{ $json.chunkText }}\n\nReturn extracted data as JSON with clear categories (e.g., chemical_composition, mechanical_properties, standards, etc.)"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        80,
+        0
+      ],
+      "id": "6964ed78-7571-4bb4-8045-3f5b54794652",
+      "name": "Message a model",
+      "executeOnce": true,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "BA3jdP1oJV3Jipxs",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-pro",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-pro"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You have received analysis from {{ $json.totalChunks }} chunks of a document.\n\nHere is the extracted technical specification data from all chunks:\n{{ JSON.stringify($json.chunkResults, null, 2) }}\n\nOriginal user request: {{ $json.originalPrompt }}\n\nTASK: Synthesize all the chunk results into ONE complete dataset, then create a professional HTML report.\n\nSteps:\n1. First, combine all findings from the chunks, removing duplicates\n2. Merge overlapping information intelligently\n3. Then create the HTML report as specified below\n\nCreate a complete HTML document with:\n1. Professional CSS styling (modern, clean design)\n2. Document header with title \"Technical Specification Report\"\n3. Well-organized sections for each category found in the data\n4. Clean tables for chemical composition and mechanical properties with proper headers\n5. Format all values with their units preserved\n6. Use professional colors and typography\n7. Make it ready for PDF generation\n\nRequirements:\n- Include complete HTML structure (DOCTYPE, html, head, body)\n- Add professional CSS styling within <style> tags\n- Create tables with borders and proper formatting\n- Use blue color scheme for headers (#0066cc)\n- Make all text clear and readable\n- Format the data exactly as extracted, preserving all units and values\n- If the same information appears in multiple chunks, include it only ONCE\n- Organize information logically, not by chunk order\n\nReturn only the complete HTML code - no explanations, just the HTML."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        464,
+        0
+      ],
+      "id": "c9d159de-006b-40ea-8b4c-fdcdb44eda9a",
+      "name": "Message a model1",
+      "executeOnce": true,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "BA3jdP1oJV3Jipxs",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        928,
+        0
+      ],
+      "id": "576ed76a-c4bd-48de-9503-84ff8241474f",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "respondWith": "binary",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/pdf"
+              },
+              {
+                "name": "Content-Disposition",
+                "value": "attachment; filename=extracted-content.pdf"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1072,
+        0
+      ],
+      "id": "4702fbea-f08e-42c9-8d3d-9552d4a54fe4",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "=data0",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -272,
+        0
+      ],
+      "id": "678d083d-68e6-4a07-88d1-f93dc7eb258b",
+      "name": "Extract from File",
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "qc-tool-upload",
+        "responseMode": "responseNode",
+        "options": {
+          "binaryPropertyName": "data"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -464,
+        0
+      ],
+      "id": "f3f16a12-4217-4004-a480-a789f38407f6",
+      "name": "Webhook",
+      "webhookId": "qc-tool-upload"
+    },
+    {
+      "parameters": {
+        "operation": "URL/HTML to PDF",
+        "convertType": "htmlToPDF",
+        "html": "={{ $json.content.parts[0].text }}",
+        "advancedOptions": {}
+      },
+      "type": "n8n-nodes-pdfco.PDFco Api",
+      "typeVersion": 1,
+      "position": [
+        752,
+        0
+      ],
+      "id": "d8397f67-7a96-4143-b747-61d6a06781b5",
+      "name": "PDFco Api",
+      "credentials": {
+        "pdfcoApi": {
+          "id": "0aosN4pYbuj3JztK",
+          "name": "PDF.co account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const fullText = $input.all()[0].json.text;\n\nconst chunkSize = 700000;\nconst overlapSize = 50000;\nconst chunks = [];\nlet chunkIndex = 0;\n\nfunction findSafeBoundary(text, position) {\n  const paragraphBreak = text.lastIndexOf('\\n\\n', position);\n  if (paragraphBreak > position - 5000 && paragraphBreak !== -1) {\n    return paragraphBreak + 2;\n  }\n  \n  const sentenceEndings = ['. ', '.\\n', '! ', '!\\n', '? ', '?\\n'];\n  let bestBoundary = -1;\n  \n  for (const ending of sentenceEndings) {\n    const pos = text.lastIndexOf(ending, position);\n    if (pos > bestBoundary && pos > position - 5000) {\n      bestBoundary = pos + ending.length;\n    }\n  }\n  \n  if (bestBoundary === -1) {\n    bestBoundary = text.lastIndexOf(' ', position);\n  }\n  \n  return bestBoundary !== -1 ? bestBoundary : position;\n}\n\nfor (let i = 0; i < fullText.length; i += (chunkSize - overlapSize)) {\n  let endPos = Math.min(i + chunkSize, fullText.length);\n  \n  if (endPos < fullText.length) {\n    endPos = findSafeBoundary(fullText, endPos);\n  }\n  \n  const chunkText = fullText.substring(i, endPos);\n  \n  chunks.push({\n    json: {\n      chunkText: chunkText,\n      chunkIndex: chunkIndex,\n      totalChunks: 0,  // Initialize as 0 instead of null\n      isFirstChunk: chunkIndex === 0,\n      isLastChunk: false\n    }\n  });\n  \n  chunkIndex++;\n  if (endPos >= fullText.length) break;\n}\n\n// Update metadata\nchunks.forEach((chunk, idx) => {\n  chunk.json.totalChunks = chunks.length;\n  chunk.json.isLastChunk = (idx === chunks.length - 1);\n});\n\nreturn chunks;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -96,
+        0
+      ],
+      "id": "390b4ac0-a2ef-4f65-a687-30660541a558",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Collect all chunk results\nconst allResults = $input.all();\n\n// Combine them into one item for Message Model 2\nreturn [{\n  json: {\n    chunkResults: allResults.map((item, idx) => ({\n      chunkIndex: idx,\n      result: item.json\n    })),\n    totalChunks: allResults.length,\n    originalPrompt: $node[\"Webhook\"].json.body.prompt\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        336,
+        0
+      ],
+      "id": "f5a19af9-c5d2-47e4-a389-b440ae468f72",
+      "name": "Code in JavaScript1"
+    }
+  ],
+  "connections": {
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model1": {
+      "main": [
+        [
+          {
+            "node": "PDFco Api",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PDFco Api": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Message a model1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

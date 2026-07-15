@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+/.pnp
+.pnp.js
+.yarn/
+
+# Next.js
+/.next/
+/out/
+
+# Production
+/build
+
+# Environment files — NEVER commit these
+.env
+.env.local
+.env*.local
+
+# Logs
+*.log
+
+# Build artifacts
+tsconfig.tsbuildinfo
+
+# OS
+.DS_Store
+Thumbs.db
